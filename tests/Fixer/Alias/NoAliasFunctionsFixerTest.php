@@ -90,14 +90,6 @@ final class NoAliasFunctionsFixerTest extends AbstractFixerTestCase
                     "<?php \\{$alias}(\$a);",
                 ];
                 $cases[] = [
-                    "<?php \$ref = &{$master}(\$a);",
-                    "<?php \$ref = &{$alias}(\$a);",
-                ];
-                $cases[] = [
-                    "<?php \$ref = &\\{$master}(\$a);",
-                    "<?php \$ref = &\\{$alias}(\$a);",
-                ];
-                $cases[] = [
                     "<?php {$master}
                                 (\$a);",
                     "<?php {$alias}
@@ -174,7 +166,7 @@ abstract class A
     public function provideFixWithConfigurationCases()
     {
         return [
-            [
+            '@internal' => [
                 '<?php
                     $a = rtrim($b);
                     $a = imap_header($imap_stream, 1);
@@ -187,7 +179,7 @@ abstract class A
                 ',
                 ['sets' => ['@internal']],
             ],
-            [
+            '@IMAP' => [
                 '<?php
                     $a = chop($b);
                     $a = imap_headerinfo($imap_stream, 1);
@@ -200,33 +192,47 @@ abstract class A
                 ',
                 ['sets' => ['@IMAP']],
             ],
-            [
+            '@mbreg' => [
                 '<?php
                     $a = chop($b);
                     $a = imap_header($imap_stream, 1);
                     mb_ereg_search_getregs();
+                    mktime();
                 ',
                 '<?php
                     $a = chop($b);
                     $a = imap_header($imap_stream, 1);
                     mbereg_search_getregs();
+                    mktime();
                 ',
                 ['sets' => ['@mbreg']],
             ],
-            [
+            '@all' => [
                 '<?php
                     $a = rtrim($b);
                     $a = imap_headerinfo($imap_stream, 1);
                     mb_ereg_search_getregs();
+                    time();
+                    time();
+                    $foo = exif_read_data($filename, $sections_needed, $sub_arrays, $read_thumbnail);
+
+                    mktime($a);
+                    echo gmmktime(1, 2, 3, 4, 5, 6);
                 ',
                 '<?php
                     $a = chop($b);
                     $a = imap_header($imap_stream, 1);
                     mbereg_search_getregs();
+                    mktime();
+                    gmmktime();
+                    $foo = read_exif_data($filename, $sections_needed, $sub_arrays, $read_thumbnail);
+
+                    mktime($a);
+                    echo gmmktime(1, 2, 3, 4, 5, 6);
                 ',
                 ['sets' => ['@all']],
             ],
-            [
+            '@IMAP, @mbreg' => [
                 '<?php
                     $a = chop($b);
                     $a = imap_headerinfo($imap_stream, 1);
@@ -238,6 +244,32 @@ abstract class A
                     mbereg_search_getregs();
                 ',
                 ['sets' => ['@IMAP', '@mbreg']],
+            ],
+            '@time' => [
+                '<?php
+                    time();
+                    time();
+
+                    MKTIME($A);
+                    ECHO GMMKTIME(1, 2, 3, 4, 5, 6);
+                ',
+                '<?php
+                    MKTIME();
+                    GMMKTIME();
+
+                    MKTIME($A);
+                    ECHO GMMKTIME(1, 2, 3, 4, 5, 6);
+                ',
+                ['sets' => ['@time']],
+            ],
+            '@exif' => [
+                '<?php
+                    $foo = exif_read_data($filename, $sections_needed, $sub_arrays, $read_thumbnail);
+                ',
+                '<?php
+                    $foo = read_exif_data($filename, $sections_needed, $sub_arrays, $read_thumbnail);
+                ',
+                ['sets' => ['@exif']],
             ],
         ];
     }

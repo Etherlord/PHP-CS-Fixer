@@ -617,12 +617,79 @@ preg_replace_callback(
             ],
             [
                 '<?php
+                    $a = function (): int {
+                        return [];
+                    };',
+                [6 => true],
+            ],
+            [
+                '<?php
                     function foo (): ?int {
                         return [];
                     };',
                 [2 => false],
             ],
         ];
+    }
+
+    /**
+     * @param string $source
+     *
+     * @dataProvider provideIsLambda80Cases
+     * @requires PHP 8.0
+     */
+    public function testIsLambda80($source, array $expected)
+    {
+        $tokensAnalyzer = new TokensAnalyzer(Tokens::fromCode($source));
+
+        foreach ($expected as $index => $expectedValue) {
+            static::assertSame($expectedValue, $tokensAnalyzer->isLambda($index));
+        }
+    }
+
+    public function provideIsLambda80Cases()
+    {
+        return [
+            [
+                '<?php
+                    $a = function (): ?static {
+                        return [];
+                    };',
+                [6 => true],
+            ],
+            [
+                '<?php
+                    $a = function (): static {
+                        return [];
+                    };',
+                [6 => true],
+            ],
+            [
+                '<?php
+$c = 4; //
+$a = function(
+    $a,
+    $b,
+) use (
+    $c,
+) {
+    echo $a + $b + $c;
+};
+
+
+$a(1,2);',
+                [14 => true],
+            ],
+        ];
+    }
+
+    public function testIsLambdaInvalid()
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('No T_FUNCTION or T_FN at given index 0, got "T_OPEN_TAG".');
+
+        $tokensAnalyzer = new TokensAnalyzer(Tokens::fromCode('<?php '));
+        $tokensAnalyzer->isLambda(0);
     }
 
     /**
@@ -873,6 +940,15 @@ preg_replace_callback(
                 [18 => false],
             ],
         ];
+    }
+
+    public function testIsConstantInvocationInvalid()
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('No T_STRING at given index 0, got "T_OPEN_TAG".');
+
+        $tokensAnalyzer = new TokensAnalyzer(Tokens::fromCode('<?php '));
+        $tokensAnalyzer->isConstantInvocation(0);
     }
 
     /**

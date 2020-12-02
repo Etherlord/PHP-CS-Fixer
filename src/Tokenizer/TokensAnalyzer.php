@@ -44,7 +44,6 @@ final class TokensAnalyzer
      */
     public function getClassyElements()
     {
-        $this->tokens->rewind();
         $elements = [];
 
         for ($index = 1, $count = \count($this->tokens) - 2; $index < $count; ++$index) {
@@ -69,8 +68,6 @@ final class TokensAnalyzer
     public function getImportUseIndexes($perNamespace = false)
     {
         $tokens = $this->tokens;
-
-        $tokens->rewind();
 
         $uses = [];
         $namespaceIndex = 0;
@@ -257,18 +254,15 @@ final class TokensAnalyzer
      */
     public function isAnonymousClass($index)
     {
-        $tokens = $this->tokens;
-        $token = $tokens[$index];
-
-        if (!$token->isClassy()) {
+        if (!$this->tokens[$index]->isClassy()) {
             throw new \LogicException(sprintf('No classy token at given index %d.', $index));
         }
 
-        if (!$token->isGivenKind(T_CLASS)) {
+        if (!$this->tokens[$index]->isGivenKind(T_CLASS)) {
             return false;
         }
 
-        return $tokens[$tokens->getPrevMeaningfulToken($index)]->isGivenKind(T_NEW);
+        return $this->tokens[$this->tokens->getPrevMeaningfulToken($index)]->isGivenKind(T_NEW);
     }
 
     /**

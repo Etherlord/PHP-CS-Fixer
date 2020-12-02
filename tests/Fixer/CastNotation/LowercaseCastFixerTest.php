@@ -61,6 +61,10 @@ final class LowercaseCastFixerTest extends AbstractFixerTestCase
      */
     public function testFix74Deprecated($expected, $input = null)
     {
+        if (\PHP_VERSION_ID >= 80000) {
+            static::markTestSkipped('PHP < 8.0 is required.');
+        }
+
         $this->expectDeprecation('%AThe (real) cast is deprecated, use (float) instead');
 
         $this->doTest($expected, $input);
@@ -68,7 +72,13 @@ final class LowercaseCastFixerTest extends AbstractFixerTestCase
 
     public function provideFixCases()
     {
-        foreach (['boolean', 'bool', 'integer', 'int', 'double', 'float', 'float', 'string', 'array', 'object', 'unset', 'binary'] as $from) {
+        $types = ['boolean', 'bool', 'integer', 'int', 'double', 'float', 'float', 'string', 'array', 'object', 'binary'];
+
+        if (\PHP_VERSION_ID < 80000) {
+            $types[] = 'unset';
+        }
+
+        foreach ($types as $from) {
             foreach ($this->createCasesFor($from) as $case) {
                 yield $case;
             }
@@ -86,14 +96,17 @@ final class LowercaseCastFixerTest extends AbstractFixerTestCase
             sprintf('<?php $b= (%s)$d;', $type),
             sprintf('<?php $b= (%s)$d;', strtoupper($type)),
         ];
+
         yield [
             sprintf('<?php $b=( %s) $d;', $type),
             sprintf('<?php $b=( %s) $d;', ucfirst($type)),
         ];
+
         yield [
             sprintf('<?php $b=(%s ) $d;', $type),
             sprintf('<?php $b=(%s ) $d;', strtoupper($type)),
         ];
+
         yield [
             sprintf('<?php $b=(  %s  ) $d;', $type),
             sprintf('<?php $b=(  %s  ) $d;', ucfirst($type)),

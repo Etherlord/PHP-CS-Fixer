@@ -340,6 +340,9 @@ echo 1;',
  */
 
 declare(strict_types=1);
+/**
+ * bar
+ */
 
 namespace A;
 
@@ -477,6 +480,73 @@ class Foo {}',
  */
 class Foo {}',
             ],
+            [
+                [
+                    'header' => 'bar',
+                    'location' => 'after_open',
+                ],
+                '<?php
+
+/*
+ * bar
+ */
+
+declare(strict_types=1);
+
+// foo
+foo();',
+                '<?php
+
+/*
+ * foo
+ */
+
+declare(strict_types=1);
+
+// foo
+foo();',
+            ],
+            [
+                [
+                    'header' => 'bar',
+                    'location' => 'after_open',
+                ],
+                '<?php
+
+/*
+ * bar
+ */
+
+declare(strict_types=1);
+
+/* foo */
+foo();',
+                '<?php
+
+/*
+ * foo
+ */
+
+declare(strict_types=1);
+
+/* foo */
+foo();',
+            ],
+            [
+                [
+                    'header' => 'tmp',
+                    'location' => 'after_declare_strict',
+                ],
+                '<?php
+
+/*
+ * tmp
+ */
+
+declare(strict_types=1) ?>',
+                '<?php
+declare(strict_types=1) ?>',
+            ],
         ];
     }
 
@@ -517,7 +587,7 @@ echo 1;'
     public function testMisconfiguration($configuration, $exceptionMessage)
     {
         $this->expectException(\PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException::class);
-        $this->expectExceptionMessageRegExp("#^\\[header_comment\\] {$exceptionMessage}$#");
+        $this->expectExceptionMessageMatches("#^\\[header_comment\\] {$exceptionMessage}$#");
 
         $this->configureFixerWithAliasedOptions($configuration);
     }
@@ -703,7 +773,7 @@ echo 1;'
     public function testInvalidHeaderConfiguration()
     {
         $this->expectException(InvalidFixerConfigurationException::class);
-        $this->expectExceptionMessageRegExp('#^\[header_comment\] Cannot use \'\*/\' in header\.$#');
+        $this->expectExceptionMessageMatches('#^\[header_comment\] Cannot use \'\*/\' in header\.$#');
 
         $this->fixer->configure([
             'header' => '/** test */',
