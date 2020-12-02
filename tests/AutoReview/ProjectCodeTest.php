@@ -14,6 +14,7 @@ namespace PhpCsFixer\Tests\AutoReview;
 
 use PhpCsFixer\DocBlock\DocBlock;
 use PhpCsFixer\Event\Event;
+use PhpCsFixer\FixerFactory;
 use PhpCsFixer\Preg;
 use PhpCsFixer\Tests\TestCase;
 use PhpCsFixer\Tokenizer\Token;
@@ -41,7 +42,9 @@ final class ProjectCodeTest extends TestCase
      */
     private static $classesWithoutTests = [
         \PhpCsFixer\Console\SelfUpdate\GithubClient::class,
+        \PhpCsFixer\Console\Command\DocumentationCommand::class,
         \PhpCsFixer\Doctrine\Annotation\Tokens::class,
+        \PhpCsFixer\Documentation\DocumentationGenerator::class,
         \PhpCsFixer\Fixer\Operator\AlignDoubleArrowFixerHelper::class,
         \PhpCsFixer\Fixer\Operator\AlignEqualsFixerHelper::class,
         \PhpCsFixer\Fixer\Whitespace\NoExtraConsecutiveBlankLinesFixer::class,
@@ -66,7 +69,7 @@ final class ProjectCodeTest extends TestCase
      */
     public function testThatSrcClassHaveTestClass($className)
     {
-        $testClassName = str_replace('PhpCsFixer', 'PhpCsFixer\\Tests', $className).'Test';
+        $testClassName = 'PhpCsFixer\\Tests'.substr($className, 10).'Test';
 
         if (\in_array($className, self::$classesWithoutTests, true)) {
             static::assertFalse(class_exists($testClassName), sprintf('Class "%s" already has tests, so it should be removed from "%s::$classesWithoutTests".', $className, __CLASS__));
@@ -258,8 +261,8 @@ final class ProjectCodeTest extends TestCase
         }
 
         foreach ($publicMethods as $method) {
-            static::assertRegExp(
-                '/^(test|provide|setUpBeforeClass$|tearDownAfterClass$)/',
+            static::assertMatchesRegularExpression(
+                '/^(test|expect|provide|setUpBeforeClass$|tearDownAfterClass$)/',
                 $method->getName(),
                 sprintf('Public method "%s::%s" is not properly named.', $reflectionClass->getName(), $method->getName())
             );
@@ -275,12 +278,14 @@ final class ProjectCodeTest extends TestCase
     {
         $usedDataProviderMethodNames = $this->getUsedDataProviderMethodNames($testClassName);
 
-        if (empty($dataProviderMethodNames)) {
+        if (empty($usedDataProviderMethodNames)) {
             $this->addToAssertionCount(1); // no data providers to test, all good!
+
+            return;
         }
 
         foreach ($usedDataProviderMethodNames as $dataProviderMethodName) {
-            static::assertRegExp('/^provide[A-Z]\S+Cases$/', $dataProviderMethodName, sprintf(
+            static::assertMatchesRegularExpression('/^provide[A-Z]\S+Cases$/', $dataProviderMethodName, sprintf(
                 'Data provider in "%s" with name "%s" is not correctly named.',
                 $testClassName,
                 $dataProviderMethodName
@@ -317,6 +322,49 @@ final class ProjectCodeTest extends TestCase
                 $usedDataProviderMethodNames,
                 sprintf('Data provider in "%s" with name "%s" is not used.', $definedDataProvider->getDeclaringClass()->getName(), $definedDataProvider->getName())
             );
+        }
+    }
+
+    /**
+     * @dataProvider provideTestClassCases
+     *
+     * @param string $testClassName
+     */
+    public function testThatTestClassCoversAreCorrect($testClassName)
+    {
+        $reflectionClass = new \ReflectionClass($testClassName);
+
+        if ($reflectionClass->isAbstract() || $reflectionClass->isInterface()) {
+            self::addToAssertionCount(1);
+
+            return;
+        }
+
+        $doc = $reflectionClass->getDocComment();
+        static::assertNotFalse($doc);
+
+        if (1 === Preg::match('/@coversNothing/', $doc, $matches)) {
+            self::addToAssertionCount(1);
+
+            return;
+        }
+
+        $covers = Preg::match('/@covers (\S*)/', $doc, $matches);
+        static::assertNotFalse($covers, sprintf('Missing @covers in PHPDoc of test class "%s".', $testClassName));
+
+        array_shift($matches);
+        $class = '\\'.str_replace('PhpCsFixer\Tests\\', 'PhpCsFixer\\', substr($testClassName, 0, -4));
+        $parentClass = (new \ReflectionClass($class))->getParentClass();
+        $parentClassName = false === $parentClass ? null : '\\'.$parentClass->getName();
+
+        foreach ($matches as $match) {
+            if ($match === $class || $parentClassName === $match) {
+                $this->addToAssertionCount(1);
+
+                continue;
+            }
+
+            static::fail(sprintf('Unexpected @covers "%s" for "%s".', $match, $testClassName));
         }
     }
 
@@ -500,7 +548,6 @@ final class ProjectCodeTest extends TestCase
                 if (
                     $rc->isInterface()
                     || ($doc && \count($doc->getAnnotationsOfType('internal')))
-                    || 0 === \count($rc->getInterfaces())
                     || \in_array($className, [
                         \PhpCsFixer\Finder::class,
                         \PhpCsFixer\Test\AbstractFixerTestCase::class,
@@ -511,6 +558,21 @@ final class ProjectCodeTest extends TestCase
                     ], true)
                 ) {
                     return false;
+                }
+
+                $interfaces = $rc->getInterfaces();
+                $interfacesCount = \count($interfaces);
+
+                if (0 === $interfacesCount) {
+                    return false;
+                }
+
+                if (1 === $interfacesCount) {
+                    $interface = reset($interfaces);
+
+                    if ('Stringable' === $interface->getName()) {
+                        return false;
+                    }
                 }
 
                 return true;
@@ -556,6 +618,41 @@ final class ProjectCodeTest extends TestCase
                 }
             )
         );
+    }
+
+    /**
+     * @param string $className
+     *
+     * @dataProvider providePhpUnitFixerExtendsAbstractPhpUnitFixerCases
+     */
+    public function testPhpUnitFixerExtendsAbstractPhpUnitFixer($className)
+    {
+        $reflection = new \ReflectionClass($className);
+
+        static::assertTrue($reflection->isSubclassOf(\PhpCsFixer\Fixer\AbstractPhpUnitFixer::class));
+    }
+
+    public function providePhpUnitFixerExtendsAbstractPhpUnitFixerCases()
+    {
+        $factory = new FixerFactory();
+        $factory->registerBuiltInFixers();
+
+        foreach ($factory->getFixers() as $fixer) {
+            if (0 !== strpos($fixer->getName(), 'php_unit_')) {
+                continue;
+            }
+
+            // this one fixes usage of PHPUnit classes
+            if ($fixer instanceof \PhpCsFixer\Fixer\PhpUnit\PhpUnitNamespacedFixer) {
+                continue;
+            }
+
+            if ($fixer instanceof \PhpCsFixer\AbstractProxyFixer) {
+                continue;
+            }
+
+            yield [\get_class($fixer)];
+        }
     }
 
     private function getUsedDataProviderMethodNames($testClassName)

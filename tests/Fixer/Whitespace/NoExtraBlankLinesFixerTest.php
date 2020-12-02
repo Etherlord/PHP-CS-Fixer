@@ -35,7 +35,7 @@ class Test {
     public function testThrow($a)
     {
         if ($a) {
-            throw new InvalidArgumentException('test'); // test
+            throw new InvalidArgumentException('test.'); // test
 
         }
         $date = new DateTime();
@@ -487,7 +487,7 @@ $b = 1;
     public function testWrongConfig()
     {
         $this->expectException(\PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException::class);
-        $this->expectExceptionMessageRegExp('/^\[no_extra_blank_lines\] Invalid configuration: The option "tokens" .*\.$/');
+        $this->expectExceptionMessageMatches('/^\[no_extra_blank_lines\] Invalid configuration: The option "tokens" .*\.$/');
 
         $this->fixer->configure(['tokens' => ['__TEST__']]);
     }
@@ -849,21 +849,31 @@ class Foo
 
     public function provideOneAndInLineCases()
     {
-        return [
+        $tests = [
             [
                 "<?php\n\n\$a = function() use (\$b) { while(3<1)break; \$c = \$b[1]; while(\$b<1)continue; if (true) throw \$e; return 1; };\n\n",
             ],
             [
-                "<?php throw new \\Exception('do not import');\n",
-                "<?php throw new \\Exception('do not import');\n\n",
+                "<?php throw new \\Exception('do not import.');\n",
+                "<?php throw new \\Exception('do not import.');\n\n",
             ],
             [
-                "<?php\n\n\$a = \$b{0};\n\n",
+                "<?php\n\n\$a = \$b[0];\n\n",
             ],
             [
                 "<?php\n\n\$a->{'Test'};\nfunction test(){}\n",
             ],
         ];
+
+        foreach ($tests as $index => $test) {
+            yield $index => $test;
+        }
+
+        if (\PHP_VERSION_ID < 80000) {
+            yield [
+                "<?php\n\n\$a = \$b{0};\n\n",
+            ];
+        }
     }
 
     /**
@@ -1207,7 +1217,7 @@ use function some\a\{fn_a, fn_b, fn_c,};
 use const some\a\{ConstA,ConstB,ConstC
 ,
 };
-use const some\Z\{ConstA,ConstB,ConstC,};
+use const some\Z\{ConstX,ConstY,ConstZ,};
 ',
             '<?php
 use some\a\{ClassA, ClassB, ClassC as C,};
@@ -1219,8 +1229,39 @@ use const some\a\{ConstA,ConstB,ConstC
 ,
 };
   '.'
-use const some\Z\{ConstA,ConstB,ConstC,};
+use const some\Z\{ConstX,ConstY,ConstZ,};
 ',
+        ];
+    }
+
+    /**
+     * @param string $expected
+     *
+     * @dataProvider provideFix80Cases
+     * @requires PHP 8.0
+     */
+    public function testFix80($expected)
+    {
+        $this->fixer->configure(['tokens' => ['throw']]);
+
+        $this->doTest($expected);
+    }
+
+    public function provideFix80Cases()
+    {
+        yield [
+            '<?php
+                $a = $bar ?? throw new \Exception();
+                $a = $bar ?? throw new \Exception();
+                $a = $bar ?? throw new \Exception();
+            ',
+            '<?php
+                $a = $bar ?? throw new \Exception();
+
+                $a = $bar ?? throw new \Exception();
+
+                $a = $bar ?? throw new \Exception();
+            ',
         ];
     }
 

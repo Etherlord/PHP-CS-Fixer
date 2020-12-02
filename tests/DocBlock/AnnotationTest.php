@@ -286,6 +286,14 @@ final class AnnotationTest extends TestCase
                 ['int'],
             ],
             [
+                " * @return int[]\r",
+                ['int[]'],
+            ],
+            [
+                " * @return int[]\r\n",
+                ['int[]'],
+            ],
+            [
                 ' * @method Foo[][] method()',
                 ['Foo[][]'],
             ],
@@ -452,9 +460,9 @@ final class AnnotationTest extends TestCase
     public function testGetTagsWithTypes()
     {
         $tags = Annotation::getTagsWithTypes();
-        static::assertInternalType('array', $tags);
+        static::assertIsArray($tags);
         foreach ($tags as $tag) {
-            static::assertInternalType('string', $tag);
+            static::assertIsString($tag);
             static::assertNotEmpty($tag);
         }
     }
